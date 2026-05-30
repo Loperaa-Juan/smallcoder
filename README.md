@@ -1,75 +1,153 @@
 # SmallCoder
 
-SmallCoder es un proyecto de investigación que compara el fine-tuning de dos familias de modelos de lenguaje pequeños para tareas de asistencia de código: **T5-large** y un modelo **SLM con QLoRA**. El objetivo final es integrar el modelo resultante en una extensión de VS Code que ofrezca predicciones de código directamente en el editor, de forma local y sin depender de servicios en la nube.
+> Fine-tuning small language models for local, offline code assistance
+
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)
+![HuggingFace](https://img.shields.io/badge/HF-smallcoder--t5--dataset-FFD21E?style=flat&logo=huggingface&logoColor=black)
+![HuggingFace](https://img.shields.io/badge/HF-smallcoder--slm--dataset-FFD21E?style=flat&logo=huggingface&logoColor=black)
+![VS Code](https://img.shields.io/badge/VS%20Code-Extension-007ACC?style=flat&logo=visualstudiocode&logoColor=white)
+![Status](https://img.shields.io/badge/Status-In%20Progress-orange?style=flat)
 
 ---
 
-## Objetivos
+## Table of Contents
 
-- Construir un pipeline reproducible de datos a partir del dataset público [CodeSearchNet](https://huggingface.co/datasets/claudios/code_search_net).
-- Entrenar y comparar T5-large (fine-tuning estándar) vs. un SLM con QLoRA sobre las mismas tareas.
-- Exponer el modelo ganador a través de una extensión de VS Code.
+- [Overview](#overview)
+- [How It Works](#how-it-works)
+- [Supported Tasks](#supported-tasks)
+- [Datasets](#datasets)
+- [Tech Stack](#tech-stack)
+- [Repository Structure](#repository-structure)
+- [Results](#results)
+- [Roadmap](#roadmap)
+- [Authors](#authors)
 
 ---
 
-## Tareas soportadas
+## Overview
 
-| Tarea | Descripción | Formato de entrada |
+SmallCoder is a research project that fine-tunes and compares two small language model families — **T5-large** and an **SLM with QLoRA** — on code assistance tasks. Both models are trained on the same data and evaluated under the same conditions to determine which architecture offers the best quality-to-size trade-off. The winning model is then shipped inside a **VS Code extension** that runs entirely locally, with no cloud dependency.
+
+---
+
+## How It Works
+
+```
+         CodeSearchNet (public dataset)
+                      │
+                      ▼
+             Data Pipeline
+          (code_dataset.ipynb)
+            85% / 10% / 5%
+                      │
+          ┌───────────┴───────────┐
+          ▼                       ▼
+     T5-large                SLM + QLoRA
+  standard fine-tuning    quantized fine-tuning
+   1,500 ex / language     3,000 ex / language
+          │                       │
+          └───────────┬───────────┘
+                      ▼
+           Evaluation & Comparison
+            (BLEU, exact match)
+                      │
+                      ▼
+          Best model → VS Code Extension
+           (inline predictions, offline)
+```
+
+---
+
+## Supported Tasks
+
+| Task | Description | Input Format |
 |---|---|---|
-| **Completado de código** | Predice el resto de una función a partir de su inicio | `complete <lang>: <código parcial>` |
-| **Generación de docstring** | Genera la documentación de una función completa | `generate docstring <lang>: <función>` |
+| **Code completion** | Predicts the rest of a function from its beginning | `complete <lang>: <partial code>` |
+| **Docstring generation** | Generates documentation for a complete function | `generate docstring <lang>: <function>` |
 
-Los lenguajes cubiertos son: **Python, JavaScript, Java, Go, Ruby y PHP**.
+Supported languages: **Python, JavaScript, Java, Go, Ruby, and PHP**.
 
 ---
 
 ## Datasets
 
-Los datasets se construyen a partir de CodeSearchNet y se publican en Hugging Face Hub con tres estrategias de corte para el completado de código:
+Datasets are built from [CodeSearchNet](https://huggingface.co/datasets/claudios/code_search_net) and published to Hugging Face Hub. Three prefix-cut strategies are used for code completion:
 
-1. Primera línea de la función como prefijo.
-2. Primera mitad de la función como prefijo.
-3. Un corte aleatorio reproducible (seed 42).
+1. First line of the function as prefix.
+2. First half of the function as prefix.
+3. A reproducible random cut (seed 42).
 
-| Modelo objetivo | Ejemplos por lenguaje | Split train / val / test | HF Hub |
+| Target model | Examples per language | Train / val / test | HF Hub |
 |---|---|---|---|
-| T5-large | 1 500 | 28 657 / 3 371 / 1 685 | [`Juanxxo/smallcoder-t5-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-t5-dataset) |
-| SLM (QLoRA) | 3 000 | 57 272 / 6 737 / 3 368 | [`Juanxxo/smallcoder-slm-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-slm-dataset) |
+| T5-large | 1,500 | 28,657 / 3,371 / 1,685 | [`Juanxxo/smallcoder-t5-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-t5-dataset) |
+| SLM (QLoRA) | 3,000 | 57,272 / 6,737 / 3,368 | [`Juanxxo/smallcoder-slm-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-slm-dataset) |
 
-El dataset SLM es más grande porque la cuantización de QLoRA permite entrenar con mayor volumen sin problemas de memoria.
+The SLM dataset is larger because QLoRA quantization allows training at higher data volumes without running into memory constraints.
 
 ---
 
-## Estructura del repositorio
+## Tech Stack
+
+**ML & Data**
+`Python 3.10+` · `PyTorch` · `HuggingFace Transformers` · `PEFT / QLoRA` · `Datasets` · `Google Colab`
+
+**Extension**
+`TypeScript` · `VS Code Extension API` · `Node.js`
+
+---
+
+## Repository Structure
 
 ```
-T5-fine-tunning/
+SmallCoder/
 ├── notebooks/
-│   └── code_dataset.ipynb      # Pipeline de construcción y subida del dataset
-└── small-coder-extension/      # Extensión de VS Code (en desarrollo)
+│   └── code_dataset.ipynb      # Dataset construction and upload pipeline
+└── small-coder-extension/      # VS Code extension (in development)
     ├── src/
-    │   └── extension.ts        # Punto de entrada de la extensión
-    ├── output/                 # Artefactos compilados (TypeScript → JS)
+    │   └── extension.ts        # Extension entry point
+    ├── output/                 # Compiled artifacts (TypeScript → JS)
     ├── package.json
     └── tsconfig.json
 ```
 
 ### `notebooks/code_dataset.ipynb`
 
-Notebook de Google Colab que:
+Google Colab notebook that:
 
-1. Carga el dataset base de CodeSearchNet por lenguaje.
-2. Genera pares `(input_code, target_completion)` para completado y docstrings.
-3. Parte el dataset en train / validation / test (85 % / 10 % / 5 %).
-4. Guarda una copia en Google Drive y publica en Hugging Face Hub.
+1. Loads CodeSearchNet by language.
+2. Generates `(input_code, target_completion)` pairs for completion and docstring tasks.
+3. Splits the dataset into train / validation / test (85% / 10% / 5%).
+4. Saves a copy to Google Drive and publishes both datasets to Hugging Face Hub.
 
 ### `small-coder-extension/`
 
-Extensión de VS Code escrita en TypeScript. Actualmente registra el comando `SmallCoder: Predict from the cursor` (implementación pendiente). El plan es conectarla al modelo fine-tuneado para ofrecer predicciones inline.
+VS Code extension written in TypeScript. Currently registers the command `SmallCoder: Predict from the cursor`. The plan is to connect it to the fine-tuned model for inline predictions.
 
 ---
 
-## Autores
+## Results
+
+> Training in progress — results will be updated once both models complete fine-tuning.
+
+| Model | BLEU (completion) | BLEU (docstring) | Exact Match | Params |
+|---|---|---|---|---|
+| T5-large | — | — | — | 770M |
+| SLM (QLoRA) | — | — | — | TBD |
+
+---
+
+## Roadmap
+
+- [x] Dataset pipeline — T5 and SLM variants published to HF Hub
+- [ ] T5-large fine-tuning
+- [ ] SLM fine-tuning (QLoRA)
+- [ ] Evaluation and model comparison
+- [ ] VS Code extension — model integration
+- [ ] VS Code extension — publish to marketplace
+
+---
+
+## Authors
 
 - [Antonio De León Jiménez](https://github.com/AntJZs)
 - [Juan José Lopera](https://github.com/Loperaa-Juan)
