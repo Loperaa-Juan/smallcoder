@@ -3,8 +3,7 @@
 > Fine-tuning small language models for local, offline code assistance
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)
-![HuggingFace](https://img.shields.io/badge/HF-smallcoder--t5--dataset-FFD21E?style=flat&logo=huggingface&logoColor=black)
-![HuggingFace](https://img.shields.io/badge/HF-smallcoder--slm--dataset-FFD21E?style=flat&logo=huggingface&logoColor=black)
+![HuggingFace](https://img.shields.io/badge/HF-smallcoder--dataset-FFD21E?style=flat&logo=huggingface&logoColor=black)
 ![VS Code](https://img.shields.io/badge/VS%20Code-Extension-007ACC?style=flat&logo=visualstudiocode&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-In%20Progress-orange?style=flat)
 
@@ -38,13 +37,17 @@ SmallCoder is a research project that fine-tunes and compares two small language
                       ▼
              Data Pipeline
           (code_dataset.ipynb)
+         1,000 ex / language
             85% / 10% / 5%
+                      │
+                      ▼
+           Unified SmallCoder Dataset
+          (Juanxxo/smallcoder-dataset)
                       │
           ┌───────────┴───────────┐
           ▼                       ▼
      T5-large                SLM + QLoRA
   standard fine-tuning    quantized fine-tuning
-   1,500 ex / language     3,000 ex / language
           │                       │
           └───────────┬───────────┘
                       ▼
@@ -77,12 +80,11 @@ Datasets are built from [CodeSearchNet](https://huggingface.co/datasets/claudios
 2. First half of the function as prefix.
 3. A reproducible random cut (seed 42).
 
-| Target model | Examples per language | Train / val / test | HF Hub |
-|---|---|---|---|
-| T5-large | 1,500 | 28,657 / 3,371 / 1,685 | [`Juanxxo/smallcoder-t5-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-t5-dataset) |
-| SLM (QLoRA) | 3,000 | 57,272 / 6,737 / 3,368 | [`Juanxxo/smallcoder-slm-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-slm-dataset) |
+| Examples per language | Approx. train / val / test | HF Hub |
+|---|---|---|
+| 1,000 | ~19,100 / ~2,250 / ~1,125 | [`Juanxxo/smallcoder-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-dataset) |
 
-The SLM dataset is larger because QLoRA quantization allows training at higher data volumes without running into memory constraints.
+Both T5-large and SLM (QLoRA) are trained on the same dataset. Each source function produces up to 4 pairs — three completion cuts and one docstring entry — so the total pair count exceeds the raw function count.
 
 ---
 
@@ -117,7 +119,7 @@ Google Colab notebook that:
 1. Loads CodeSearchNet by language.
 2. Generates `(input_code, target_completion)` pairs for completion and docstring tasks.
 3. Splits the dataset into train / validation / test (85% / 10% / 5%).
-4. Saves a copy to Google Drive and publishes both datasets to Hugging Face Hub.
+4. Saves a copy to Google Drive and publishes a single unified dataset to Hugging Face Hub.
 
 ### `small-coder-extension/`
 
@@ -138,7 +140,7 @@ VS Code extension written in TypeScript. Currently registers the command `SmallC
 
 ## Roadmap
 
-- [x] Dataset pipeline — T5 and SLM variants published to HF Hub
+- [x] Dataset pipeline — unified dataset (1,000 ex/language) published to HF Hub
 - [ ] T5-large fine-tuning
 - [ ] SLM fine-tuning (QLoRA)
 - [ ] Evaluation and model comparison
