@@ -9,15 +9,79 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
-  "main": "./output/extension.js",
+  "activationEvents": [
+    "onCommand:small-coder-extension.setupRuntime",
+    "onCommand:small-coder-extension.predict",
+    "onCommand:small-coder-extension.toggleDevice",
+    "onCommand:small-coder-extension.downloadModel",
+    "onCommand:small-coder-extension.openLogs"
+  ],
+  "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
+        "command": "small-coder-extension.setupRuntime",
+        "title": "SmallCoder: Setup runtime"
+      },
+      {
         "command": "small-coder-extension.predict",
-        "title": "SmallCoder: Predict from the cursor"
+        "title": "SmallCoder: Predict from cursor"
+      },
+      {
+        "command": "small-coder-extension.toggleDevice",
+        "title": "SmallCoder: Toggle device (CPU / CUDA)"
+      },
+      {
+        "command": "small-coder-extension.downloadModel",
+        "title": "SmallCoder: Download model"
+      },
+      {
+        "command": "small-coder-extension.openLogs",
+        "title": "SmallCoder: Open runtime logs"
       }
-    ]
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "SmallCoder",
+      "properties": {
+        "smallCoder.model": {
+          "type": "string",
+          "default": "smallcoder-tiny",
+          "description": "Selected model id for the local inference server"
+        },
+        "smallCoder.envPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Python virtual environment used by SmallCoder"
+        },
+        "smallCoder.device": {
+          "type": "string",
+          "enum": [
+            "cpu",
+            "cuda"
+          ],
+          "default": "cpu",
+          "description": "Device preference for the Python inference server"
+        },
+        "smallCoder.maxTokens": {
+          "type": "number",
+          "default": 64,
+          "minimum": 1,
+          "maximum": 512,
+          "description": "Maximum number of tokens to request from the server"
+        },
+        "smallCoder.serverArgs": {
+          "type": "object",
+          "default": {},
+          "description": "Extra CLI arguments passed to the SmallCoder Python server"
+        },
+        "smallCoder.autoCreateVenv": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically create the SmallCoder virtual environment when setup is triggered"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -31,8 +95,8 @@
   ],
   "license": "ISC",
   "devDependencies": {
+    "@types/node": "^16.18.126",
     "@types/vscode": "^1.74.0",
-    "@types/node": "16.x",
     "typescript": "^4.9.4"
   }
 }

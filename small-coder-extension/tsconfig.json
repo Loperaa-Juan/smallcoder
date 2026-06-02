@@ -2,9 +2,10 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "ES2021",
-    "outDir": "output", // Cambiar cuando se termine
+    "outDir": "out", // Cambiar cuando se termine
     "rootDir": "src",
     "lib": ["ES2021"],
+    "types": ["node"],
     "sourceMap": true, // Cambiar cuando se termine
     "strict": true,
     "noUnusedLocals": true,
