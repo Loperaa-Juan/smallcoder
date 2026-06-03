@@ -150,6 +150,15 @@ VS Code extension written in TypeScript. Currently registers the command `SmallC
 
 Evaluated on 100 test samples from [`Juanxxo/smallcoder-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-dataset) using the [CodeBLEU](https://github.com/microsoft/CodeBLEU) metric (weights 0.25 each). See [`notebooks/CodeBLEU_benchmark.ipynb`](notebooks/CodeBLEU_benchmark.ipynb) for full details.
 
+CodeBLEU combines four sub-metrics, each in **[0, 1]** (higher = closer to the reference):
+
+- **N-gram match** — classic BLEU token n-gram overlap (lexical similarity).
+- **Weighted n-gram match** — same, weighting language keywords (`if`, `for`, `return`, …) more heavily.
+- **Syntax match** — compares the abstract syntax trees (AST) (structural similarity).
+- **Dataflow match** — compares how variables are defined and used (semantic similarity).
+
+The final CodeBLEU is their weighted average.
+
 | Model | CodeBLEU | n-gram | weighted n-gram | syntax | dataflow |
 |---|---|---|---|---|---|
 | Qwen2.5-1.5B-Instruct (base) | 0.2129 | 0.0163 | 0.0521 | 0.3526 | 0.4307 |
