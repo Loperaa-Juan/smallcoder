@@ -165,6 +165,32 @@ if __name__ == '__main__':
                         return str(snapshot)
         return model_id
 
+    def _build_quant_config(device_map):
+        """Build a 4-bit bitsandbytes quantization config when running on GPU.
+
+        Returns None on CPU or when bitsandbytes / BitsAndBytesConfig are
+        unavailable, so the model falls back to a normal (unquantized) load.
+        """
+        if device_map == 'cpu':
+            return None
+        try:
+            from transformers import BitsAndBytesConfig
+        except ImportError:
+            print('BitsAndBytesConfig unavailable; loading without 4-bit quantization', file=sys.stderr)
+            return None
+        try:
+            import bitsandbytes  # noqa: F401
+        except ImportError:
+            print('bitsandbytes not installed; loading without 4-bit quantization', file=sys.stderr)
+            return None
+        print('GPU detected: loading model in 4-bit (nf4) with bitsandbytes')
+        return BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type='nf4',
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+        )
+
     def _load_generator(model_id, device_map):
         """Load model without using transformers.pipeline.
 
@@ -174,6 +200,8 @@ if __name__ == '__main__':
         """
         resolved_id = _resolve_model_path(model_id)
         print(f'Resolved model path: {resolved_id}')
+
+        quant_config = _build_quant_config(device_map)
 
         # Try PEFT adapter first when available
         if PeftConfig is not None and PeftModel is not None:
@@ -187,12 +215,14 @@ if __name__ == '__main__':
                     tokenizer = AutoTokenizer.from_pretrained(base_id, trust_remote_code=True)
                 torch_dtype = torch.float16 if device_map != 'cpu' else torch.float32
                 print(f'Loading base model {base_id} (this may download ~3 GB on first run)...')
-                base_model = AutoModelForCausalLM.from_pretrained(
-                    base_id,
+                base_kwargs = dict(
                     torch_dtype=torch_dtype,
                     device_map=device_map,
                     trust_remote_code=True,
                 )
+                if quant_config is not None:
+                    base_kwargs['quantization_config'] = quant_config
+                base_model = AutoModelForCausalLM.from_pretrained(base_id, **base_kwargs)
                 model = PeftModel.from_pretrained(base_model, resolved_id)
                 return model, tokenizer, False
             except Exception as peft_exc:
@@ -201,12 +231,14 @@ if __name__ == '__main__':
         # Try loading base model directly
         try:
             tokenizer = AutoTokenizer.from_pretrained(resolved_id, trust_remote_code=False)
-            model = AutoModelForCausalLM.from_pretrained(
-                resolved_id,
+            base_kwargs = dict(
                 torch_dtype=torch.float32,
                 device_map=device_map,
                 trust_remote_code=False,
             )
+            if quant_config is not None:
+                base_kwargs['quantization_config'] = quant_config
+            model = AutoModelForCausalLM.from_pretrained(resolved_id, **base_kwargs)
             return model, tokenizer, False
         except Exception as exc:
             print(f'Base model load failed without trust_remote_code: {exc}', file=sys.stderr)
@@ -214,12 +246,14 @@ if __name__ == '__main__':
         # Retry with trust_remote_code when model requires remote code
         try:
             tokenizer = AutoTokenizer.from_pretrained(resolved_id, trust_remote_code=True)
-            model = AutoModelForCausalLM.from_pretrained(
-                resolved_id,
+            base_kwargs = dict(
                 torch_dtype=torch.float32,
                 device_map=device_map,
                 trust_remote_code=True,
             )
+            if quant_config is not None:
+                base_kwargs['quantization_config'] = quant_config
+            model = AutoModelForCausalLM.from_pretrained(resolved_id, **base_kwargs)
             return model, tokenizer, False
         except Exception as exc2:
             print(f'Base model load failed with trust_remote_code: {exc2}', file=sys.stderr)
