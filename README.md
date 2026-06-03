@@ -18,6 +18,7 @@
 - [Datasets](#datasets)
 - [Tech Stack](#tech-stack)
 - [Repository Structure](#repository-structure)
+- [VS Code Extension](#vs-code-extension)
 - [Results](#results)
 - [Roadmap](#roadmap)
 - [Authors](#authors)
@@ -134,7 +135,48 @@ Google Colab notebook that fine-tunes **Qwen2.5-1.5B-Instruct** on the SmallCode
 
 ### `small-coder-extension/`
 
-VS Code extension written in TypeScript. Currently registers the command `SmallCoder: Predict from the cursor`. The plan is to connect it to the fine-tuned model for inline predictions.
+VS Code extension written in TypeScript that runs the fine-tuned model **fully locally** — no code ever leaves the machine. See [VS Code Extension](#vs-code-extension) for details.
+
+---
+
+## VS Code Extension
+
+The `small-coder-extension/` directory contains a VS Code extension that brings the fine-tuned SmallCoder model into the editor. The extension host stays lightweight: all inference runs in a local Python server, keeping VS Code responsive.
+
+### Architecture
+
+```
+VS Code (TypeScript)                Local Python server
+─────────────────────               ────────────────────
+extension.ts  ──spawn──►  server/server_launcher.py
+predict.ts    ──POST /predict──►    HTTP @ 127.0.0.1 (localhost only)
+                          ◄──completion──
+```
+
+The extension manages a Python virtual environment, downloads the model, and launches `server_launcher.py` as a background process. The server exposes a minimal HTTP API (`POST /predict`, `GET /health`) bound to `localhost` only, so source code never leaves the machine. When a CUDA GPU is available, the base model is loaded in **4-bit (nf4) with bitsandbytes**; otherwise it falls back to an unquantized CPU load. The fine-tuned [LoRA adapter](https://huggingface.co/Juanxxo/qwen2.5-1.5B-code-adapter) is applied on top via PEFT.
+
+### Commands
+
+| Command | Description |
+|---|---|
+| `SmallCoder: Setup runtime` | Create the Python venv and prepare the local server |
+| `SmallCoder: Predict from cursor` | Send the current editor context to the server and insert the completion |
+| `SmallCoder: Force CPU` | Run the runtime on CPU |
+| `SmallCoder: Force CUDA` | Run the runtime on an NVIDIA GPU (when available) |
+| `SmallCoder: Download model` | Download / prepare the model in extension storage |
+| `SmallCoder: Open runtime logs` | Open the SmallCoder output channel |
+
+### Settings
+
+| Setting | Default | Description |
+|---|---|---|
+| `smallCoder.model` | `smallcoder-tiny` | Model id for the local inference server |
+| `smallCoder.envPath` | `""` | Path to the Python virtual environment |
+| `smallCoder.device` | `cpu` | Device preference (`cpu` / `cuda`) |
+| `smallCoder.maxTokens` | `512` | Max tokens requested per prediction |
+| `smallCoder.autoCreateVenv` | `false` | Auto-create the venv during setup |
+
+> **Privacy:** the inference server binds to `127.0.0.1` only and never makes outbound calls with your code — everything runs offline.
 
 ---
 
