@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { pickModel, showError, showInfo, withProgress } from './ui';
-import { createVirtualEnv, installRequirements, findPython } from './envManager';
-import { getAvailableModels, getModelById, downloadModel } from './modelManager';
+import { createVirtualEnv, installRequirements, findPython, getVenvPython, detectDevice } from './envManager';
+import { getAvailableModels, getModelById, downloadModel, isModelDownloaded, ModelInfo } from './modelManager';
 import * as fs from 'fs';
 import { PythonServerManager } from './serverManager';
 import { predictAtCursor } from './predict';
@@ -15,12 +15,37 @@ const STATE_KEYS = {
 
 let serverManager: PythonServerManager | undefined;
 let outputChannel: vscode.OutputChannel;
+let statusBar: vscode.StatusBarItem;
+
+function updateStatusBar(modelLabel: string, device: string, running: boolean): void {
+  const icon = running ? '$(circle-filled)' : '$(circle-outline)';
+  statusBar.text = `$(circuit-board) [${modelLabel}] ${icon} ${device.toUpperCase()}`;
+  statusBar.color = running ? new vscode.ThemeColor('charts.green') : undefined;
+}
 
 export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('SmallCoder');
   outputChannel.appendLine('SmallCoder extension activating...');
 
   serverManager = new PythonServerManager(outputChannel, context.extensionPath);
+
+  statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  statusBar.command = 'small-coder-extension.openLogs';
+  statusBar.tooltip = 'SmallCoder — click to open logs';
+  const savedModel = context.globalState.get<string>(STATE_KEYS.MODEL_ID) ?? 'none';
+  const savedDevice = context.globalState.get<string>(STATE_KEYS.DEVICE) ?? 'cpu';
+  updateStatusBar(getModelById(savedModel)?.label ?? savedModel, savedDevice, false);
+  statusBar.show();
+  context.subscriptions.push(statusBar);
+
+  serverManager.onStart = (model, device) => {
+    updateStatusBar(getModelById(model)?.label ?? model, device, true);
+  };
+  serverManager.onStop = () => {
+    const m = context.globalState.get<string>(STATE_KEYS.MODEL_ID) ?? 'none';
+    const d = context.globalState.get<string>(STATE_KEYS.DEVICE) ?? 'cpu';
+    updateStatusBar(getModelById(m)?.label ?? m, d, false);
+  };
 
   context.subscriptions.push(
     vscode.commands.registerCommand('small-coder-extension.setupRuntime', async () => {
@@ -29,8 +54,11 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('small-coder-extension.predict', async () => {
       await predictCommand(context);
     }),
-    vscode.commands.registerCommand('small-coder-extension.toggleDevice', async () => {
-      await toggleDevice(context);
+    vscode.commands.registerCommand('small-coder-extension.forceCpu', async () => {
+      await forceCpu(context);
+    }),
+    vscode.commands.registerCommand('small-coder-extension.forceCuda', async () => {
+      await forceCuda(context);
     }),
     vscode.commands.registerCommand('small-coder-extension.downloadModel', async () => {
       await downloadModelCommand(context);
@@ -70,12 +98,18 @@ async function setupRuntime(context: vscode.ExtensionContext) {
 
     context.globalState.update(STATE_KEYS.ENV_PATH, envPath);
     context.globalState.update(STATE_KEYS.MODEL_ID, model.id);
-    context.globalState.update(
-      STATE_KEYS.DEVICE,
-      vscode.workspace.getConfiguration().get<string>('smallCoder.device', 'cpu'),
-    );
 
-    await downloadModel(model, context.storageUri?.fsPath ?? `${context.globalStoragePath}/models`, outputChannel);
+    const detectedDevice = detectDevice(envPath);
+    context.globalState.update(STATE_KEYS.DEVICE, detectedDevice);
+    updateStatusBar(getModelById(model.id)?.label ?? model.id, detectedDevice, false);
+    showInfo(`SmallCoder: detected device → ${detectedDevice.toUpperCase()}`);
+
+    await downloadModel(
+      model,
+      context.storageUri?.fsPath ?? `${context.globalStoragePath}/models`,
+      outputChannel,
+      getVenvPython(envPath),
+    );
 
     showInfo('SmallCoder runtime created. Use Predict from cursor to generate completions.');
   } catch (error) {
@@ -109,12 +143,19 @@ async function predictCommand(context: vscode.ExtensionContext) {
     const modelsStorage = context.storageUri?.fsPath ?? `${context.globalStoragePath}/models`;
 
     // Determine what to pass to server: ModelInfo or model path/string.
-    let modelOrArg: string | typeof model = model ?? currentModelId;
+    let modelOrArg: ModelInfo | string = model ?? currentModelId;
 
     // If we have a ModelInfo, prefer local downloaded folder if exists.
     if (model) {
       const localCandidate = path.join(modelsStorage, model.id);
       if (fs.existsSync(localCandidate)) {
+        const downloaded = await isModelDownloaded(localCandidate);
+        if (!downloaded) {
+          showError(
+            `Model "${model.label}" was not fully downloaded. Run "SmallCoder: Download Model" to download it.`,
+          );
+          return;
+        }
         modelOrArg = localCandidate;
       } else if (model.id.startsWith('local-')) {
         const alt = model.id.replace(/^local-/, '');
@@ -143,10 +184,16 @@ async function predictCommand(context: vscode.ExtensionContext) {
       }
     }
 
-    const port = await serverManager?.startServer(
-      envPath,
-      modelOrArg,
-      context.globalState.get<string>(STATE_KEYS.DEVICE) ?? 'cpu',
+    let port: number | undefined;
+    await withProgress(
+      'SmallCoder: Loading model (first run downloads ~3 GB — check SmallCoder output for progress)',
+      async () => {
+        port = await serverManager?.startServer(
+          envPath,
+          modelOrArg,
+          context.globalState.get<string>(STATE_KEYS.DEVICE) ?? 'cpu',
+        );
+      },
     );
     if (!port) {
       showError('Unable to start SmallCoder server.');
@@ -159,14 +206,31 @@ async function predictCommand(context: vscode.ExtensionContext) {
   }
 }
 
-async function toggleDevice(context: vscode.ExtensionContext) {
-  const config = vscode.workspace.getConfiguration();
-  const current = config.get<string>('smallCoder.device', 'cpu');
-  const next = current === 'cpu' ? 'cuda' : 'cpu';
-  await config.update('smallCoder.device', next, vscode.ConfigurationTarget.Global);
-  context.globalState.update(STATE_KEYS.DEVICE, next);
-  showInfo(`Device set to ${next}. Restart SmallCoder server before predicting.`);
+async function forceCpu(context: vscode.ExtensionContext) {
+  context.globalState.update(STATE_KEYS.DEVICE, 'cpu');
   await serverManager?.stopServer();
+  const m = context.globalState.get<string>(STATE_KEYS.MODEL_ID) ?? 'none';
+  updateStatusBar(getModelById(m)?.label ?? m, 'cpu', false);
+  showInfo('SmallCoder: device set to CPU. Server will use CPU on next prediction.');
+}
+
+async function forceCuda(context: vscode.ExtensionContext) {
+  const detectedDevice = context.globalState.get<string>(STATE_KEYS.DEVICE);
+  if (detectedDevice !== 'cuda') {
+    const confirmed = await vscode.window.showWarningMessage(
+      'CUDA was not detected during Setup Runtime. Force CUDA anyway?',
+      'Yes, force CUDA',
+      'Cancel',
+    );
+    if (confirmed !== 'Yes, force CUDA') {
+      return;
+    }
+  }
+  context.globalState.update(STATE_KEYS.DEVICE, 'cuda');
+  await serverManager?.stopServer();
+  const m = context.globalState.get<string>(STATE_KEYS.MODEL_ID) ?? 'none';
+  updateStatusBar(getModelById(m)?.label ?? m, 'cuda', false);
+  showInfo('SmallCoder: device set to CUDA. Server will use CUDA on next prediction.');
 }
 
 async function downloadModelCommand(context: vscode.ExtensionContext) {
@@ -177,7 +241,13 @@ async function downloadModelCommand(context: vscode.ExtensionContext) {
     return;
   }
 
-  await downloadModel(model, context.storageUri?.fsPath ?? `${context.globalStoragePath}/models`, outputChannel);
+  const envPath = context.globalState.get<string>(STATE_KEYS.ENV_PATH);
+  await downloadModel(
+    model,
+    context.storageUri?.fsPath ?? `${context.globalStoragePath}/models`,
+    outputChannel,
+    envPath ? getVenvPython(envPath) : undefined,
+  );
   showInfo('Model download completed.');
 }
 

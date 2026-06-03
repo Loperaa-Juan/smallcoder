@@ -42,6 +42,16 @@ function getVenvExecutable(envPath: string, executableName: string): string {
   return path.join(envPath, 'bin', executableName);
 }
 
+export function detectDevice(envPath: string): 'cuda' | 'cpu' {
+  const pythonPath = getVenvPython(envPath);
+  const result = spawnSync(
+    pythonPath,
+    ['-c', 'import torch; print("cuda" if torch.cuda.is_available() else "cpu")'],
+    { encoding: 'utf8' },
+  );
+  return result.stdout?.trim() === 'cuda' ? 'cuda' : 'cpu';
+}
+
 function runProcess(command: string, args: string[], output: OutputChannel): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: 'pipe' });

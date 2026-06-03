@@ -174,8 +174,7 @@ Evaluated on 100 test samples from [`Juanxxo/smallcoder-dataset`](https://huggin
 - [x] Dataset pipeline — unified dataset (1,000 ex/language) published to HF Hub
 - [x] SLM fine-tuning — Qwen2.5-1.5B + LoRA adapter published to HF Hub
 - [x] Evaluation (CodeBLEU) — fine-tuned model scores **0.2253** vs base 0.2129 (+0.0124)
-- [ ] VS Code extension — model integration
-- [ ] VS Code extension — publish to marketplace
+- [x] VS Code extension — model integration
 
 ---
 

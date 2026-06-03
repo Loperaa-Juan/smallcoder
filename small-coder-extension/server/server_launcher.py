@@ -158,7 +158,10 @@ if __name__ == '__main__':
             snapshots_dir = models_dir / 'snapshots'
             if snapshots_dir.is_dir():
                 for snapshot in snapshots_dir.iterdir():
-                    if snapshot.is_dir() and (snapshot / 'tokenizer_config.json').exists():
+                    if snapshot.is_dir() and any(
+                        (snapshot / f).exists()
+                        for f in ('tokenizer_config.json', 'config.json', 'adapter_config.json')
+                    ):
                         return str(snapshot)
         return model_id
 
@@ -176,10 +179,17 @@ if __name__ == '__main__':
         if PeftConfig is not None and PeftModel is not None:
             try:
                 peft_config = PeftConfig.from_pretrained(resolved_id)
-                tokenizer = AutoTokenizer.from_pretrained(peft_config.base_model_name_or_path, trust_remote_code=True)
+                base_id = peft_config.base_model_name_or_path
+                # Prefer tokenizer bundled in the adapter snapshot over downloading from base model
+                try:
+                    tokenizer = AutoTokenizer.from_pretrained(resolved_id, trust_remote_code=True)
+                except Exception:
+                    tokenizer = AutoTokenizer.from_pretrained(base_id, trust_remote_code=True)
+                torch_dtype = torch.float16 if device_map != 'cpu' else torch.float32
+                print(f'Loading base model {base_id} (this may download ~3 GB on first run)...')
                 base_model = AutoModelForCausalLM.from_pretrained(
-                    peft_config.base_model_name_or_path,
-                    torch_dtype=torch.float32,
+                    base_id,
+                    torch_dtype=torch_dtype,
                     device_map=device_map,
                     trust_remote_code=True,
                 )

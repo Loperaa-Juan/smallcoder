@@ -60,21 +60,35 @@ function requestJson<T>(url: string, data?: unknown): Promise<T> {
   });
 }
 
-function waitForServer(port: number, timeout = 20000): Promise<void> {
+function waitForServer(port: number, process: ChildProcess, timeout = 600000): Promise<void> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
+    let done = false;
+
+    const finish = (err?: Error) => {
+      if (done) return;
+      done = true;
+      clearInterval(interval);
+      err ? reject(err) : resolve();
+    };
+
+    // Fail immediately if the server process exits before becoming healthy
+    process.once('exit', (code) => {
+      if (code !== 0) {
+        finish(new Error(`SmallCoder server exited with code ${code} before becoming ready`));
+      }
+    });
+
     const interval = setInterval(async () => {
       try {
         await requestJson<{ status: string }>(`http://127.0.0.1:${port}/health`);
-        clearInterval(interval);
-        resolve();
+        finish();
       } catch {
         if (Date.now() - start > timeout) {
-          clearInterval(interval);
-          reject(new Error('SmallCoder server did not become ready in time'));
+          finish(new Error('SmallCoder server did not become ready in time (10 min timeout exceeded)'));
         }
       }
-    }, 500);
+    }, 1000);
   });
 }
 
@@ -85,6 +99,8 @@ export class PythonServerManager {
   private currentDevice: string | null = null;
   private output: OutputChannel;
   private extensionPath: string;
+  public onStart?: (model: string, device: string) => void;
+  public onStop?: () => void;
 
   constructor(output: OutputChannel, extensionPath: string) {
     this.output = output;
@@ -133,9 +149,10 @@ export class PythonServerManager {
       });
     }
 
-    await waitForServer(port);
+    await waitForServer(port, this.process);
     this.currentModel = modelArg;
     this.currentDevice = device;
+    this.onStart?.(modelArg, device);
     return port;
   }
 
@@ -148,5 +165,6 @@ export class PythonServerManager {
     this.port = null;
     this.currentModel = null;
     this.currentDevice = null;
+    this.onStop?.();
   }
 }

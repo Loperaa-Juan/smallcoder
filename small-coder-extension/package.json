@@ -12,7 +12,8 @@
   "activationEvents": [
     "onCommand:small-coder-extension.setupRuntime",
     "onCommand:small-coder-extension.predict",
-    "onCommand:small-coder-extension.toggleDevice",
+    "onCommand:small-coder-extension.forceCpu",
+    "onCommand:small-coder-extension.forceCuda",
     "onCommand:small-coder-extension.downloadModel",
     "onCommand:small-coder-extension.openLogs"
   ],
@@ -28,8 +29,12 @@
         "title": "SmallCoder: Predict from cursor"
       },
       {
-        "command": "small-coder-extension.toggleDevice",
-        "title": "SmallCoder: Toggle device (CPU / CUDA)"
+        "command": "small-coder-extension.forceCpu",
+        "title": "SmallCoder: Force CPU"
+      },
+      {
+        "command": "small-coder-extension.forceCuda",
+        "title": "SmallCoder: Force CUDA"
       },
       {
         "command": "small-coder-extension.downloadModel",

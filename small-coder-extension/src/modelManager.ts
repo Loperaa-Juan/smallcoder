@@ -81,7 +81,12 @@ async function findPythonPath(): Promise<string> {
   }
 }
 
-export async function downloadModel(model: ModelInfo, storagePath: string, output: OutputChannel): Promise<string> {
+export async function downloadModel(
+  model: ModelInfo,
+  storagePath: string,
+  output: OutputChannel,
+  venvPythonPath?: string,
+): Promise<string> {
   await fs.mkdir(storagePath, { recursive: true });
   const modelPath = path.join(storagePath, model.id);
   await fs.mkdir(modelPath, { recursive: true });
@@ -97,28 +102,29 @@ export async function downloadModel(model: ModelInfo, storagePath: string, outpu
   output.appendLine(`Model ${model.id} prepared at ${modelPath}`);
 
   if (model.url) {
-    try {
-      output.appendLine(`Downloading model ${model.id} from HuggingFace Hub...`);
-      // Find path to download_model.py script in server folder
-      const extensionPath = path.dirname(path.dirname(__filename)); // From src/modelManager.ts → src → root
-      const downloadScript = path.join(extensionPath, 'server', 'download_model.py');
-
-      const pythonPath = await findPythonPath();
-      const downloadedPath = await spawnPython(
-        pythonPath,
-        downloadScript,
-        ['--model-id', model.url, '--cache-dir', modelPath],
-        output,
-      );
-
-      output.appendLine(`Model ${model.id} downloaded successfully from ${downloadedPath}`);
-    } catch (error) {
-      output.appendLine(`Warning: Failed to download model ${model.id}: ${String(error)}`);
-      output.appendLine(
-        'Model metadata created but weights not downloaded. Inference will attempt to load from HuggingFace.',
-      );
-    }
+    const extensionPath = path.dirname(path.dirname(__filename));
+    const downloadScript = path.join(extensionPath, 'server', 'download_model.py');
+    // Prefer venv Python (has huggingface_hub installed) over system Python
+    const pythonPath = venvPythonPath ?? (await findPythonPath());
+    output.appendLine(`Downloading model ${model.id} from HuggingFace Hub using ${pythonPath}...`);
+    const downloadedPath = await spawnPython(
+      pythonPath,
+      downloadScript,
+      ['--model-id', model.url, '--cache-dir', modelPath],
+      output,
+    );
+    output.appendLine(`Model ${model.id} downloaded successfully from ${downloadedPath}`);
   }
 
   return modelPath;
+}
+
+export async function isModelDownloaded(modelPath: string): Promise<boolean> {
+  try {
+    const entries = await fs.readdir(modelPath);
+    // A properly downloaded HF model/adapter has more than just our metadata file
+    return entries.some((e) => e !== 'model-metadata.json');
+  } catch {
+    return false;
+  }
 }
