@@ -53,6 +53,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             completion = self._generate_completion(prompt, max_tokens)
             self._send_json({'completion': completion, 'finish_reason': 'length'})
         except Exception as exc:
+            import traceback
+            traceback.print_exc()
             self.send_error(500, f'Inference error: {exc}')
 
     def _generate_completion(self, prompt, max_tokens):
@@ -98,6 +100,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return_tensors='pt',
                 add_generation_prompt=True,
             )
+            # Convert BatchEncoding (UserDict) to plain dict so **inputs works correctly
+            if hasattr(inputs, 'items'):
+                inputs = dict(inputs)
+            else:
+                inputs = {'input_ids': inputs}
         else:
             inputs = tokenizer(prompt, return_tensors='pt')
 
@@ -139,6 +146,22 @@ if __name__ == '__main__':
     torch_device = torch.device('cuda' if args.device == 'cuda' else 'cpu')
     print(f'Loading model {args.model_id} on device {args.device}...')
 
+    def _resolve_model_path(model_id):
+        """Resolve a local model path, handling HF cache directory structures."""
+        path = Path(model_id)
+        if not path.is_dir():
+            return model_id
+        if (path / 'tokenizer_config.json').exists() or (path / 'config.json').exists():
+            return str(path)
+        # HF cache structure: models--org--repo/snapshots/<hash>/
+        for models_dir in path.glob('models--*'):
+            snapshots_dir = models_dir / 'snapshots'
+            if snapshots_dir.is_dir():
+                for snapshot in snapshots_dir.iterdir():
+                    if snapshot.is_dir() and (snapshot / 'tokenizer_config.json').exists():
+                        return str(snapshot)
+        return model_id
+
     def _load_generator(model_id, device_map):
         """Load model without using transformers.pipeline.
 
@@ -146,10 +169,13 @@ if __name__ == '__main__':
         - PEFT adapter (local or remote) if peft available
         - AutoModelForCausalLM + AutoTokenizer (with trust_remote_code retry)
         """
+        resolved_id = _resolve_model_path(model_id)
+        print(f'Resolved model path: {resolved_id}')
+
         # Try PEFT adapter first when available
         if PeftConfig is not None and PeftModel is not None:
             try:
-                peft_config = PeftConfig.from_pretrained(model_id)
+                peft_config = PeftConfig.from_pretrained(resolved_id)
                 tokenizer = AutoTokenizer.from_pretrained(peft_config.base_model_name_or_path, trust_remote_code=True)
                 base_model = AutoModelForCausalLM.from_pretrained(
                     peft_config.base_model_name_or_path,
@@ -157,16 +183,16 @@ if __name__ == '__main__':
                     device_map=device_map,
                     trust_remote_code=True,
                 )
-                model = PeftModel.from_pretrained(base_model, model_id)
+                model = PeftModel.from_pretrained(base_model, resolved_id)
                 return model, tokenizer, False
             except Exception as peft_exc:
                 print(f'PEFT load failed: {peft_exc}', file=sys.stderr)
 
         # Try loading base model directly
         try:
-            tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=False)
+            tokenizer = AutoTokenizer.from_pretrained(resolved_id, trust_remote_code=False)
             model = AutoModelForCausalLM.from_pretrained(
-                model_id,
+                resolved_id,
                 torch_dtype=torch.float32,
                 device_map=device_map,
                 trust_remote_code=False,
@@ -177,9 +203,9 @@ if __name__ == '__main__':
 
         # Retry with trust_remote_code when model requires remote code
         try:
-            tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+            tokenizer = AutoTokenizer.from_pretrained(resolved_id, trust_remote_code=True)
             model = AutoModelForCausalLM.from_pretrained(
-                model_id,
+                resolved_id,
                 torch_dtype=torch.float32,
                 device_map=device_map,
                 trust_remote_code=True,

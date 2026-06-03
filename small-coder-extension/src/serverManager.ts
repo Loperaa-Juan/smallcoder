@@ -60,7 +60,7 @@ function requestJson<T>(url: string, data?: unknown): Promise<T> {
   });
 }
 
-function waitForServer(port: number, timeout = 10000): Promise<void> {
+function waitForServer(port: number, timeout = 20000): Promise<void> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const interval = setInterval(async () => {
@@ -81,6 +81,8 @@ function waitForServer(port: number, timeout = 10000): Promise<void> {
 export class PythonServerManager {
   private process: ChildProcess | null = null;
   private port: number | null = null;
+  private currentModel: string | null = null;
+  private currentDevice: string | null = null;
   private output: OutputChannel;
   private extensionPath: string;
 
@@ -90,12 +92,24 @@ export class PythonServerManager {
   }
 
   public async startServer(envPath: string, model: ModelInfo | string, device: string): Promise<number | undefined> {
+    const modelArg = typeof model === 'string' ? model : model.id;
+
+    // Reuse existing server if same model/device and still healthy
+    if (this.process && !this.process.killed && this.currentModel === modelArg && this.currentDevice === device && this.port) {
+      try {
+        await requestJson<{ status: string }>(`http://127.0.0.1:${this.port}/health`);
+        this.output.appendLine(`Reusing existing SmallCoder server on port ${this.port}`);
+        return this.port;
+      } catch {
+        this.output.appendLine('Existing server is not responding, restarting...');
+      }
+    }
+
     await this.stopServer();
 
     const pythonPath = getVenvPython(envPath);
     const scriptPath = path.join(this.extensionPath, 'server', 'server_launcher.py');
     const port = await findFreePort();
-    const modelArg = typeof model === 'string' ? model : model.id;
     const args = [scriptPath, '--port', `${port}`, '--device', device, '--model-id', modelArg];
 
     this.output.appendLine(`Starting SmallCoder server with: ${pythonPath} ${args.join(' ')}`);
@@ -113,11 +127,15 @@ export class PythonServerManager {
         this.output.appendLine(`SmallCoder server exited with code ${code}`);
         if (this.port === port) {
           this.port = null;
+          this.currentModel = null;
+          this.currentDevice = null;
         }
       });
     }
 
     await waitForServer(port);
+    this.currentModel = modelArg;
+    this.currentDevice = device;
     return port;
   }
 
@@ -125,8 +143,10 @@ export class PythonServerManager {
     if (this.process && !this.process.killed) {
       this.output.appendLine('Stopping existing SmallCoder server');
       this.process.kill();
-      this.process = null;
-      this.port = null;
     }
+    this.process = null;
+    this.port = null;
+    this.currentModel = null;
+    this.currentDevice = null;
   }
 }
