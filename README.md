@@ -103,9 +103,10 @@ Each source function produces up to 4 pairs — three completion cuts and one do
 ```
 SmallCoder/
 ├── notebooks/
-│   ├── code_dataset.ipynb       # Dataset construction and upload pipeline
-│   └── slm_fine_tunning.ipynb   # Qwen2.5-1.5B LoRA fine-tuning on Google Colab
-└── small-coder-extension/       # VS Code extension (in development)
+│   ├── code_dataset.ipynb         # Dataset construction and upload pipeline
+│   ├── slm_fine_tunning.ipynb     # Qwen2.5-1.5B LoRA fine-tuning on Google Colab
+│   └── CodeBLEU_benchmark.ipynb   # CodeBLEU evaluation: base vs. fine-tuned
+└── small-coder-extension/         # VS Code extension (in development)
     ├── src/
     │   └── extension.ts         # Extension entry point
     ├── output/                  # Compiled artifacts (TypeScript → JS)
@@ -139,9 +140,32 @@ VS Code extension written in TypeScript. Currently registers the command `SmallC
 
 ## Results
 
-| Model | Training Loss | BLEU (completion) | BLEU (docstring) | Exact Match | Params |
+### Training
+
+| Model | Training Loss | Params |
+|---|---|---|
+| Qwen2.5-1.5B (LoRA) | 0.310 | 1.5B (9.23M trainable) |
+
+### CodeBLEU Benchmark
+
+Evaluated on 100 test samples from [`Juanxxo/smallcoder-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-dataset) using the [CodeBLEU](https://github.com/microsoft/CodeBLEU) metric (weights 0.25 each). See [`notebooks/CodeBLEU_benchmark.ipynb`](notebooks/CodeBLEU_benchmark.ipynb) for full details.
+
+| Model | CodeBLEU | n-gram | weighted n-gram | syntax | dataflow |
 |---|---|---|---|---|---|
-| Qwen2.5-1.5B (LoRA) | 0.310 | — | — | — | 1.5B (9.23M trainable) |
+| Qwen2.5-1.5B-Instruct (base) | 0.2129 | 0.0163 | 0.0521 | 0.3526 | 0.4307 |
+| Qwen2.5-1.5B-code-adapter (fine-tuned) | **0.2253** | **0.0925** | **0.1127** | **0.3944** | 0.3017 |
+| Delta | **+0.0124** | +0.0762 | +0.0606 | +0.0418 | −0.1290 |
+
+#### Per-language CodeBLEU
+
+| Language | Samples | Base | Fine-tuned | Δ |
+|---|---|---|---|---|
+| Python | 38 | 0.2046 | **0.2436** | +0.0390 |
+| Java | 18 | 0.1703 | 0.1662 | −0.0041 |
+| JavaScript | 13 | 0.2329 | 0.2181 | −0.0148 |
+| Ruby | 16 | 0.1740 | **0.2138** | +0.0398 |
+| Go | 9 | **0.3135** | 0.3074 | −0.0061 |
+| PHP | 6 | **0.3029** | 0.2101 | −0.0928 |
 
 ---
 
@@ -149,7 +173,7 @@ VS Code extension written in TypeScript. Currently registers the command `SmallC
 
 - [x] Dataset pipeline — unified dataset (1,000 ex/language) published to HF Hub
 - [x] SLM fine-tuning — Qwen2.5-1.5B + LoRA adapter published to HF Hub
-- [ ] Evaluation (BLEU with CodeBLEU)
+- [x] Evaluation (CodeBLEU) — fine-tuned model scores **0.2253** vs base 0.2129 (+0.0124)
 - [ ] VS Code extension — model integration
 - [ ] VS Code extension — publish to marketplace
 
