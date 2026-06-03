@@ -26,7 +26,7 @@
 
 ## Overview
 
-SmallCoder is a research project that fine-tunes and compares two small language model families — **T5-large** and **Qwen2.5-1.5B with LoRA** — on code assistance tasks. Both models are trained on the same data and evaluated under the same conditions to determine which architecture offers the best quality-to-size trade-off. The winning model is then shipped inside a **VS Code extension** that runs entirely locally, with no cloud dependency.
+SmallCoder is a research project that fine-tunes **Qwen2.5-1.5B with LoRA** on code assistance tasks and ships the resulting model inside a **VS Code extension** that runs entirely locally, with no cloud dependency.
 
 ---
 
@@ -46,18 +46,16 @@ SmallCoder is a research project that fine-tunes and compares two small language
           (Juanxxo/smallcoder-dataset)
           15,250 train / 1,794 val / 897 test
                       │
-          ┌───────────┴───────────┐
-          ▼                       ▼
-     T5-large             Qwen2.5-1.5B-Instruct
-  standard fine-tuning     LoRA (4-bit QLoRA)
-          │                       │
-          └───────────┬───────────┘
                       ▼
-           Evaluation & Comparison
-            (BLEU, exact match)
+          Qwen2.5-1.5B-Instruct
+           LoRA (4-bit QLoRA)
                       │
                       ▼
-          Best model → VS Code Extension
+              Evaluation
+           (BLEU, exact match)
+                      │
+                      ▼
+          Fine-tuned model → VS Code Extension
            (inline predictions, offline)
 ```
 
@@ -86,7 +84,7 @@ Datasets are built from [CodeSearchNet](https://huggingface.co/datasets/claudios
 |---|---|---|
 | 1,000 | 15,250 / 1,794 / 897 | [`Juanxxo/smallcoder-dataset`](https://huggingface.co/datasets/Juanxxo/smallcoder-dataset) |
 
-Both T5-large and Qwen2.5-1.5B (LoRA) are trained on the same dataset. Each source function produces up to 4 pairs — three completion cuts and one docstring entry — so the total pair count exceeds the raw function count.
+Each source function produces up to 4 pairs — three completion cuts and one docstring entry — so the total pair count exceeds the raw function count.
 
 ---
 
@@ -141,11 +139,8 @@ VS Code extension written in TypeScript. Currently registers the command `SmallC
 
 ## Results
 
-> T5-large fine-tuning in progress — BLEU and exact match metrics will be updated once both models complete evaluation.
-
 | Model | Training Loss | BLEU (completion) | BLEU (docstring) | Exact Match | Params |
 |---|---|---|---|---|---|
-| T5-large | — | — | — | — | 770M |
 | Qwen2.5-1.5B (LoRA) | 0.310 | — | — | — | 1.5B (9.23M trainable) |
 
 ---
@@ -153,9 +148,8 @@ VS Code extension written in TypeScript. Currently registers the command `SmallC
 ## Roadmap
 
 - [x] Dataset pipeline — unified dataset (1,000 ex/language) published to HF Hub
-- [ ] T5-large fine-tuning
 - [x] SLM fine-tuning — Qwen2.5-1.5B + LoRA adapter published to HF Hub
-- [ ] Evaluation and model comparison (BLEU, exact match)
+- [ ] Evaluation (BLEU with CodeBLEU)
 - [ ] VS Code extension — model integration
 - [ ] VS Code extension — publish to marketplace
 
