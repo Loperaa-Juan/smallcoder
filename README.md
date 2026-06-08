@@ -163,7 +163,7 @@ The extension manages a Python virtual environment, downloads the model, and lau
 | `SmallCoder: Predict from cursor` | Send the current editor context to the server and insert the completion |
 | `SmallCoder: Force CPU` | Run the runtime on CPU |
 | `SmallCoder: Force CUDA` | Run the runtime on an NVIDIA GPU (when available) |
-| `SmallCoder: Download model` | Download / prepare the model in extension storage |
+| `SmallCoder: Download and load model` | Download the model into extension storage and load it by starting the local server |
 | `SmallCoder: Open runtime logs` | Open the SmallCoder output channel |
 
 ### Settings

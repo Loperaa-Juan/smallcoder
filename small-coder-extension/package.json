@@ -38,7 +38,7 @@
       },
       {
         "command": "small-coder-extension.downloadModel",
-        "title": "SmallCoder: Download model"
+        "title": "SmallCoder: Download and load model"
       },
       {
         "command": "small-coder-extension.openLogs",

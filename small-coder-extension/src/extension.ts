@@ -18,9 +18,12 @@ let outputChannel: vscode.OutputChannel;
 let statusBar: vscode.StatusBarItem;
 
 function updateStatusBar(modelLabel: string, device: string, running: boolean): void {
-  const icon = running ? '$(circle-filled)' : '$(circle-outline)';
-  statusBar.text = `$(circuit-board) [${modelLabel}] ${icon} ${device.toUpperCase()}`;
-  statusBar.color = running ? new vscode.ThemeColor('charts.green') : undefined;
+  const runIcon = running ? '$(circle-filled)' : '$(circle-outline)';
+  const isCuda = device.toLowerCase() === 'cuda';
+  // Highlight GPU runs with a "zap" codicon in green; CPU keeps the neutral board icon.
+  const deviceIcon = isCuda ? '$(zap)' : '$(circuit-board)';
+  statusBar.text = `${deviceIcon} [${modelLabel}] ${runIcon} ${device.toUpperCase()}`;
+  statusBar.color = isCuda || running ? new vscode.ThemeColor('charts.green') : undefined;
 }
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -39,7 +42,11 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(statusBar);
 
   serverManager.onStart = (model, device) => {
-    updateStatusBar(getModelById(model)?.label ?? model, device, true);
+    // The server may be started with a local filesystem path, not the model id.
+    // Resolve the display label from the saved model id so the status bar keeps
+    // showing a short label (and the device) instead of a long setup path.
+    const savedId = context.globalState.get<string>(STATE_KEYS.MODEL_ID) ?? model;
+    updateStatusBar(getModelById(savedId)?.label ?? savedId, device, true);
   };
   serverManager.onStop = () => {
     const m = context.globalState.get<string>(STATE_KEYS.MODEL_ID) ?? 'none';
@@ -242,13 +249,33 @@ async function downloadModelCommand(context: vscode.ExtensionContext) {
   }
 
   const envPath = context.globalState.get<string>(STATE_KEYS.ENV_PATH);
-  await downloadModel(
+  const modelPath = await downloadModel(
     model,
     context.storageUri?.fsPath ?? `${context.globalStoragePath}/models`,
     outputChannel,
     envPath ? getVenvPython(envPath) : undefined,
   );
   showInfo('Model download completed.');
+
+  // Load the model right after downloading by starting the inference server.
+  if (!envPath) {
+    showError('Runtime not configured — run "Setup runtime" first to load the model.');
+    return;
+  }
+
+  const device = context.globalState.get<string>(STATE_KEYS.DEVICE) ?? 'cpu';
+  let port: number | undefined;
+  await withProgress(
+    'SmallCoder: Loading model (first run downloads ~3 GB — check SmallCoder output for progress)',
+    async () => {
+      port = await serverManager?.startServer(envPath, modelPath, device);
+    },
+  );
+  if (port) {
+    showInfo('Model downloaded and loaded.');
+  } else {
+    showError('Model downloaded, but the SmallCoder server failed to start.');
+  }
 }
 
 export function deactivate() {

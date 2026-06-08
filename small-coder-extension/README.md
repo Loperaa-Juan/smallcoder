@@ -12,7 +12,7 @@ This extension provides a local SmallCoder runtime integration for VS Code. It s
 - `SmallCoder: Setup runtime` — create a Python venv and prepare the local server
 - `SmallCoder: Predict from cursor` — send current editor context to the local server and insert completion
 - `SmallCoder: Toggle device (CPU / CUDA)` — change runtime device preference
-- `SmallCoder: Download model` — prepare model metadata in extension storage
+- `SmallCoder: Download and load model` — download the model into extension storage and load it by starting the local server
 - `SmallCoder: Open runtime logs` — open the SmallCoder output channel
 
 ## Runtime files
