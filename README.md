@@ -153,7 +153,7 @@ predict.ts    ──POST /predict──►    HTTP @ 127.0.0.1 (localhost only)
                           ◄──completion──
 ```
 
-The extension manages a Python virtual environment, downloads the model, and launches `server_launcher.py` as a background process. The server exposes a minimal HTTP API (`POST /predict`, `GET /health`) bound to `localhost` only, so source code never leaves the machine. When a CUDA GPU is available, the base model is loaded in **4-bit (nf4) with bitsandbytes**; otherwise it falls back to an unquantized CPU load. The fine-tuned [LoRA adapter](https://huggingface.co/Juanxxo/qwen2.5-1.5B-code-adapter) is applied on top via PEFT.
+The extension manages a Python virtual environment, downloads the model, and launches `server_launcher.py` as a background process. The server exposes a minimal HTTP API (`POST /predict`, `GET /health`) bound to `localhost` only, so source code never leaves the machine. `POST /predict` streams the completion back token-by-token (chunked transfer encoding) so it appears in the editor as it is generated. On a CUDA GPU the model is loaded in **fp16** when there is enough VRAM (faster per token) and falls back to **4-bit (nf4) with bitsandbytes** only when memory is tight; on CPU it loads unquantized. The fine-tuned [LoRA adapter](https://huggingface.co/Juanxxo/qwen2.5-1.5B-code-adapter) is applied on top via PEFT (and merged into the base weights when not quantized).
 
 ### Commands
 
