@@ -224,6 +224,18 @@ if __name__ == '__main__':
                     base_kwargs['quantization_config'] = quant_config
                 base_model = AutoModelForCausalLM.from_pretrained(base_id, **base_kwargs)
                 model = PeftModel.from_pretrained(base_model, resolved_id)
+                # Merge LoRA weights into the base model to drop the PEFT wrapper
+                # overhead on every forward pass. Skip merging on 4-bit (bitsandbytes)
+                # loads: merging into quantized linears introduces rounding errors
+                # that can change generations, so we keep the adapter unmerged there.
+                if quant_config is None:
+                    try:
+                        model = model.merge_and_unload()
+                        print('LoRA weights merged into base model')
+                    except Exception as merge_exc:
+                        print(f'merge_and_unload failed, keeping adapter unmerged: {merge_exc}', file=sys.stderr)
+                else:
+                    print('4-bit load detected; keeping LoRA adapter unmerged to avoid rounding errors')
                 return model, tokenizer, False
             except Exception as peft_exc:
                 print(f'PEFT load failed: {peft_exc}', file=sys.stderr)
