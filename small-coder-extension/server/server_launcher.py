@@ -276,6 +276,11 @@ if __name__ == '__main__':
 
     generator, tokenizer, use_pipeline = _load_generator(args.model_id, device_map)
 
+    # Put the model in evaluation mode explicitly: disables dropout and other
+    # training-only behaviour so inference is deterministic and slightly faster.
+    if not use_pipeline and hasattr(generator, 'eval'):
+        generator.eval()
+
     server = ThreadedHTTPServer(('127.0.0.1', args.port), RequestHandler)
     server.device = args.device
     server.model_id = args.model_id
