@@ -173,7 +173,7 @@ The extension manages a Python virtual environment, downloads the model, and lau
 | `smallCoder.model` | `smallcoder-tiny` | Model id for the local inference server |
 | `smallCoder.envPath` | `""` | Path to the Python virtual environment |
 | `smallCoder.device` | `cpu` | Device preference (`cpu` / `cuda`) |
-| `smallCoder.maxTokens` | `512` | Max tokens requested per prediction |
+| `smallCoder.maxTokens` | `256` | Max tokens requested per prediction |
 | `smallCoder.autoCreateVenv` | `false` | Auto-create the venv during setup |
 
 > **Privacy:** the inference server binds to `127.0.0.1` only and never makes outbound calls with your code — everything runs offline.

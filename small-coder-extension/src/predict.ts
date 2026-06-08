@@ -62,7 +62,7 @@ export async function predictAtCursor(port: number, output: OutputChannel) {
 
   const prompt = promptLines.join('\n');
   const language = document.languageId;
-  const maxTokens = vscode.workspace.getConfiguration().get<number>('smallCoder.maxTokens', 512);
+  const maxTokens = vscode.workspace.getConfiguration().get<number>('smallCoder.maxTokens', 256);
 
   await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: 'SmallCoder predicting…', cancellable: false },

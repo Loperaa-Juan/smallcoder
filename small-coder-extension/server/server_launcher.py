@@ -115,12 +115,18 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if hasattr(value, 'to'):
                     inputs[key] = value.to(self.server.torch_device)
 
+        pad_token_id = tokenizer.pad_token_id
+        if pad_token_id is None:
+            pad_token_id = tokenizer.eos_token_id
+
         with torch.no_grad():
             output = model.generate(
                 **inputs,
                 max_new_tokens=max_tokens,
                 do_sample=False,
                 num_beams=1,
+                use_cache=True,
+                pad_token_id=pad_token_id,
             )
 
         if hasattr(inputs, 'get') and inputs.get('input_ids') is not None:
