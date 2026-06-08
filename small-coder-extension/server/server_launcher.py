@@ -219,6 +219,7 @@ if __name__ == '__main__':
                     torch_dtype=torch_dtype,
                     device_map=device_map,
                     trust_remote_code=True,
+                    attn_implementation='sdpa',
                 )
                 if quant_config is not None:
                     base_kwargs['quantization_config'] = quant_config
@@ -247,6 +248,7 @@ if __name__ == '__main__':
                 torch_dtype=torch.float32,
                 device_map=device_map,
                 trust_remote_code=False,
+                attn_implementation='sdpa',
             )
             if quant_config is not None:
                 base_kwargs['quantization_config'] = quant_config
@@ -262,6 +264,7 @@ if __name__ == '__main__':
                 torch_dtype=torch.float32,
                 device_map=device_map,
                 trust_remote_code=True,
+                attn_implementation='sdpa',
             )
             if quant_config is not None:
                 base_kwargs['quantization_config'] = quant_config
